@@ -50,9 +50,9 @@ def on_connect(client, userdata, flags, rc):
     if rc == 0:
         logger.info(f"✅ Connected to MQTT broker at {config.MQTT_BROKER}:{config.MQTT_PORT}")
         mqtt_connected = True
-        # Subscribe to bin telemetry topic
-        client.subscribe(config.MQTT_TOPIC)
-        logger.info(f"📡 Subscribed to: {config.MQTT_TOPIC}")
+        # Subscribe to bin telemetry topic with QoS 1
+        client.subscribe(config.MQTT_TOPIC, qos=1)
+        logger.info(f"📡 Subscribed to: {config.MQTT_TOPIC} (QoS=1)")
     else:
         logger.error(f"❌ Failed to connect to MQTT broker, return code: {rc}")
         mqtt_connected = False
@@ -123,6 +123,9 @@ def on_message(client, userdata, msg):
             lon=lon,
             last_seen=parsed_ts.isoformat()
         )
+        
+        # Update device status to online
+        db.update_device_status(bin_id, "online")
         
         # If emptied flag is set, update last_emptied
         if emptied:

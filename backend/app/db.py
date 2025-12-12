@@ -145,3 +145,128 @@ def get_recent_telemetry(bin_id: str, limit: int = 100):
     with get_cursor() as cur:
         cur.execute(sql, (bin_id, limit))
         return cur.fetchall()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Device Management Operations
+# ─────────────────────────────────────────────────────────────────────────────
+
+def register_device(
+    bin_id: str,
+    user_id: str,
+    user_name: str,
+    user_phone: str,
+    wifi_ssid: str,
+    lat: float = None,
+    lon: float = None
+):
+    """Register a new device with user information."""
+    sql = """
+        INSERT INTO bins (bin_id, user_id, user_name, user_phone, wifi_ssid, lat, lon, registered_at, device_status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), 'offline')
+        ON CONFLICT (bin_id) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            user_name = EXCLUDED.user_name,
+            user_phone = EXCLUDED.user_phone,
+            wifi_ssid = EXCLUDED.wifi_ssid,
+            lat = EXCLUDED.lat,
+            lon = EXCLUDED.lon,
+            registered_at = NOW()
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (bin_id, user_id, user_name, user_phone, wifi_ssid, lat, lon))
+
+
+def update_device_status(bin_id: str, status: str):
+    """Update device online/offline status."""
+    sql = "UPDATE bins SET device_status = %s WHERE bin_id = %s"
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (status, bin_id))
+
+
+def get_user_bins(user_id: str):
+    """Get all bins registered to a user."""
+    sql = """
+        SELECT bin_id, lat, lon, last_seen, device_status, sleep_mode, registered_at
+        FROM bins
+        WHERE user_id = %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (user_id,))
+        return cur.fetchall()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Alerts Operations
+# ─────────────────────────────────────────────────────────────────────────────
+
+def create_alert(bin_id: str, alert_type: str, severity: str, message: str) -> int:
+    """Create a new alert."""
+    sql = """
+        INSERT INTO alerts (bin_id, alert_type, severity, message)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (bin_id, alert_type, severity, message))
+        return cur.fetchone()['id']
+
+
+def get_unresolved_alerts(bin_id: str = None):
+    """Get unresolved alerts, optionally filtered by bin_id."""
+    if bin_id:
+        sql = """
+            SELECT id, bin_id, alert_type, severity, message, created_at
+            FROM alerts
+            WHERE bin_id = %s AND resolved = FALSE
+            ORDER BY created_at DESC
+        """
+        with get_cursor() as cur:
+            cur.execute(sql, (bin_id,))
+            return cur.fetchall()
+    else:
+        sql = """
+            SELECT id, bin_id, alert_type, severity, message, created_at
+            FROM alerts
+            WHERE resolved = FALSE
+            ORDER BY created_at DESC
+        """
+        with get_cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+
+def resolve_alert(alert_id: int):
+    """Mark an alert as resolved."""
+    sql = "UPDATE alerts SET resolved = TRUE, resolved_at = NOW() WHERE id = %s"
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (alert_id,))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Commands Log Operations
+# ─────────────────────────────────────────────────────────────────────────────
+
+def log_command(bin_id: str, command_type: str, payload: dict):
+    """Log a command sent to a device."""
+    sql = """
+        INSERT INTO commands_log (bin_id, command_type, payload)
+        VALUES (%s, %s, %s)
+    """
+    import json
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (bin_id, command_type, json.dumps(payload)))
+
+
+def get_command_history(bin_id: str, limit: int = 50):
+    """Get command history for a bin."""
+    sql = """
+        SELECT id, command_type, payload, sent_at, acknowledged, ack_at
+        FROM commands_log
+        WHERE bin_id = %s
+        ORDER BY sent_at DESC
+        LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (bin_id, limit))
+        return cur.fetchall()

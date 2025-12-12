@@ -74,13 +74,44 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## API Endpoints
 
+### Core Endpoints
 | Endpoint | Description |
 |----------|-------------|
 | `GET /` | API info |
 | `GET /health` | Health check (DB + MQTT status) |
 | `GET /bins/latest` | Latest state of all bins |
 | `GET /telemetry/recent?bin_id=B001&limit=100` | Recent telemetry for a bin |
-| `GET /bins/at_risk` | Bins at overflow risk (coming soon) |
+
+### Device Management
+| Endpoint | Description |
+|----------|-------------|
+| `POST /devices/register` | Register new device with user info |
+| `GET /devices/user/{user_id}` | Get all devices for a user |
+| `GET /devices/{bin_id}/health` | Device health status |
+| `GET /fleet/health` | Overall fleet health summary |
+
+### Monitoring & Alerts
+| Endpoint | Description |
+|----------|-------------|
+| `POST /monitoring/health-check` | Run health checks (battery, offline, overflow) |
+| `GET /alerts?bin_id=B001` | Get unresolved alerts |
+| `POST /alerts/{alert_id}/resolve` | Mark alert as resolved |
+
+### Command & Control (Downlink)
+| Endpoint | Description |
+|----------|-------------|
+| `POST /commands/{bin_id}/wake` | Wake up device for collection |
+| `POST /commands/{bin_id}/sleep` | Put device to sleep |
+| `POST /commands/{bin_id}/reset-emptied` | Reset emptied flag |
+| `POST /commands/{bin_id}/status` | Request immediate status |
+| `GET /commands/{bin_id}/history` | Command history |
+
+### Collection Day Workflow
+| Endpoint | Description |
+|----------|-------------|
+| `POST /collection/start` | Start collection day (wake all bins) |
+| `POST /collection/end` | End collection day (sleep all bins) |
+| `POST /collection/remind` | Send reminders to offline bins |
 
 ## Testing with MQTT
 

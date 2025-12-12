@@ -125,3 +125,260 @@ async def get_bins_at_risk():
         "message": "Coming soon - EWMA overflow prediction",
         "bins_at_risk": []
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Device Management Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DeviceRegistration(BaseModel):
+    """Device registration payload."""
+    bin_id: str
+    user_id: str
+    user_name: str
+    user_phone: str
+    wifi_ssid: str
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+
+
+@router.post("/devices/register")
+async def register_device(device: DeviceRegistration):
+    """
+    Register a new device with user information.
+    Called during device setup process.
+    """
+    try:
+        db.register_device(
+            bin_id=device.bin_id,
+            user_id=device.user_id,
+            user_name=device.user_name,
+            user_phone=device.user_phone,
+            wifi_ssid=device.wifi_ssid,
+            lat=device.lat,
+            lon=device.lon
+        )
+        return {
+            "success": True,
+            "message": f"Device {device.bin_id} registered successfully",
+            "bin_id": device.bin_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/devices/user/{user_id}")
+async def get_user_devices(user_id: str):
+    """Get all devices registered to a user."""
+    try:
+        bins = db.get_user_bins(user_id)
+        return {"user_id": user_id, "bins": [dict(b) for b in bins]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Device Health & Monitoring Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/devices/{bin_id}/health")
+async def get_device_health(bin_id: str):
+    """Get detailed health status for a specific device."""
+    from . import alerts
+    try:
+        health = alerts.get_device_health(bin_id)
+        if "error" in health:
+            raise HTTPException(status_code=404, detail=health["error"])
+        return health
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/fleet/health")
+async def get_fleet_health():
+    """Get overall fleet health summary."""
+    from . import alerts
+    try:
+        return alerts.get_fleet_health()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/monitoring/health-check")
+async def run_health_check():
+    """
+    Manually trigger health check for all devices.
+    Creates alerts for battery, offline, and overflow issues.
+    """
+    from . import alerts
+    try:
+        summary = alerts.run_health_checks()
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Alerts Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/alerts")
+async def get_alerts(bin_id: Optional[str] = Query(None)):
+    """Get unresolved alerts, optionally filtered by bin_id."""
+    try:
+        alerts_list = db.get_unresolved_alerts(bin_id)
+        return {"alerts": [dict(a) for a in alerts_list]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/alerts/{alert_id}/resolve")
+async def resolve_alert(alert_id: int):
+    """Mark an alert as resolved."""
+    try:
+        db.resolve_alert(alert_id)
+        return {"success": True, "alert_id": alert_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Command & Control Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/commands/{bin_id}/wake")
+async def wake_device(bin_id: str, collection_hours: int = Query(12, ge=1, le=24)):
+    """Send wake-up command to a specific bin."""
+    from . import mqtt_commands
+    try:
+        success = mqtt_commands.wake_up_bin(bin_id, collection_hours)
+        return {
+            "success": success,
+            "bin_id": bin_id,
+            "command": "wake_up",
+            "collection_hours": collection_hours
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/commands/{bin_id}/sleep")
+async def sleep_device(bin_id: str):
+    """Send sleep command to a specific bin."""
+    from . import mqtt_commands
+    try:
+        success = mqtt_commands.sleep_bin(bin_id)
+        return {"success": success, "bin_id": bin_id, "command": "sleep"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/commands/{bin_id}/reset-emptied")
+async def reset_emptied(bin_id: str):
+    """Reset the emptied flag on a bin."""
+    from . import mqtt_commands
+    try:
+        success = mqtt_commands.reset_emptied_flag(bin_id)
+        return {"success": success, "bin_id": bin_id, "command": "reset_emptied"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/commands/{bin_id}/status")
+async def request_status(bin_id: str):
+    """Request immediate status update from device."""
+    from . import mqtt_commands
+    try:
+        success = mqtt_commands.request_status(bin_id)
+        return {"success": success, "bin_id": bin_id, "command": "get_status"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/commands/{bin_id}/history")
+async def get_command_history(bin_id: str, limit: int = Query(50, ge=1, le=200)):
+    """Get command history for a bin."""
+    try:
+        commands = db.get_command_history(bin_id, limit)
+        return {"bin_id": bin_id, "commands": [dict(c) for c in commands]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Collection Day Workflow Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/collection/start")
+async def start_collection_day(collection_hours: int = Query(12, ge=1, le=24)):
+    """
+    Start collection day workflow:
+    - Wake up all bins
+    - Create reminder alerts for users
+    - Return status
+    """
+    from . import mqtt_commands
+    try:
+        result = mqtt_commands.start_collection_day(collection_hours)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/collection/end")
+async def end_collection_day():
+    """
+    End collection day workflow:
+    - Send sleep command to all bins
+    - Mark collection complete
+    """
+    from . import mqtt_commands
+    try:
+        result = mqtt_commands.end_collection_day()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/collection/remind")
+async def send_reminders():
+    """
+    Send reminder alerts to users whose bins are still offline.
+    Used during collection day if devices haven't responded.
+    """
+    from . import alerts
+    try:
+        # Check for offline bins that should be awake
+        with db.get_cursor() as cur:
+            cur.execute("""
+                SELECT bin_id, user_name, user_phone
+                FROM bins
+                WHERE sleep_mode = FALSE 
+                AND device_status = 'offline'
+                AND user_id IS NOT NULL
+            """)
+            offline_bins = cur.fetchall()
+        
+        reminders_sent = []
+        for bin_data in offline_bins:
+            alert_id = db.create_alert(
+                bin_id=bin_data['bin_id'],
+                alert_type="collection_reminder",
+                severity="warning",
+                message=f"⚠️ Reminder: Please turn on bin device {bin_data['bin_id']}. User: {bin_data['user_name']}"
+            )
+            reminders_sent.append({
+                "bin_id": bin_data['bin_id'],
+                "user": bin_data['user_name'],
+                "alert_id": alert_id
+            })
+        
+        return {
+            "success": True,
+            "reminders_sent": len(reminders_sent),
+            "bins": reminders_sent
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
