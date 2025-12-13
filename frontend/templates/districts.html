@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CleanRoute - Bins by District</title>
+    <title>CleanRoute - Districts & Zones</title>
     
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -50,10 +50,40 @@
             background: rgba(0, 255, 136, 0.2);
         }
         
+        .admin-bar {
+            background: rgba(255, 100, 0, 0.1);
+            border: 1px solid #ff6600;
+            border-radius: 8px;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .admin-bar.hidden {
+            display: none;
+        }
+        
+        .admin-info {
+            color: #ff6600;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        
+        .logout-btn {
+            background: rgba(255, 0, 85, 0.2);
+            border: 1px solid #ff0055;
+            color: #ff0055;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
         .districts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 25px;
         }
         
         .district-card {
@@ -80,33 +110,94 @@
         
         .district-name {
             font-family: 'Orbitron', monospace;
-            font-size: 1.3rem;
+            font-size: 1.4rem;
             color: #00ff88;
         }
         
-        .district-count {
+        .district-stats {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .stat-badge {
             background: rgba(0, 255, 136, 0.2);
             color: #00ff88;
             padding: 5px 12px;
             border-radius: 20px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: bold;
         }
         
-        .bins-list {
-            max-height: 300px;
-            overflow-y: auto;
+        .stat-badge.zones {
+            background: rgba(0, 136, 255, 0.2);
+            color: #0088ff;
+        }
+        
+        .zones-container {
+            margin-top: 15px;
+        }
+        
+        .zone-card {
+            background: rgba(0, 40, 80, 0.5);
+            border-radius: 8px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid #00ff88;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .zone-card:hover {
+            background: rgba(0, 60, 100, 0.6);
+        }
+        
+        .zone-card.expanded {
+            border-left-color: #0088ff;
+        }
+        
+        .zone-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .zone-name {
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+            color: #fff;
+            font-size: 1.1rem;
+        }
+        
+        .zone-id {
+            color: #5a6a8a;
+            font-size: 0.8rem;
+        }
+        
+        .zone-bins-count {
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+        
+        .zone-bins-list {
+            display: none;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(0, 255, 136, 0.1);
+        }
+        
+        .zone-card.expanded .zone-bins-list {
+            display: block;
         }
         
         .bin-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px;
+            padding: 10px;
             margin-bottom: 8px;
-            background: rgba(0, 40, 80, 0.5);
-            border-radius: 8px;
-            border-left: 4px solid #00ff88;
+            background: rgba(0, 20, 40, 0.8);
+            border-radius: 6px;
+            border-left: 3px solid #00ff88;
         }
         
         .bin-item.warning {
@@ -117,11 +208,6 @@
             border-left-color: #ff0055;
         }
         
-        .bin-item.offline {
-            border-left-color: #666;
-            opacity: 0.7;
-        }
-        
         .bin-info {
             flex: 1;
         }
@@ -129,29 +215,17 @@
         .bin-id {
             font-family: 'Orbitron', monospace;
             color: #fff;
-            font-size: 1rem;
-        }
-        
-        .bin-location {
-            color: #8892b0;
-            font-size: 0.85rem;
-            margin-top: 2px;
-        }
-        
-        .bin-coords {
-            color: #5a6a8a;
-            font-size: 0.75rem;
-            margin-top: 2px;
+            font-size: 0.95rem;
         }
         
         .bin-stats {
             display: flex;
-            gap: 15px;
+            gap: 12px;
             align-items: center;
         }
         
         .fill-level {
-            font-size: 1.2rem;
+            font-size: 1rem;
             font-weight: bold;
         }
         
@@ -159,17 +233,24 @@
         .fill-level.warning { color: #ffaa00; }
         .fill-level.critical { color: #ff0055; }
         
-        .battery-level {
-            font-size: 0.9rem;
-            color: #8892b0;
-        }
-        
-        .battery-level i {
-            margin-right: 5px;
-        }
-        
-        .battery-level.low {
+        .delete-btn {
+            background: rgba(255, 0, 85, 0.2);
+            border: 1px solid #ff0055;
             color: #ff0055;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: 10px;
+            display: none;
+        }
+        
+        .admin-mode .delete-btn {
+            display: inline-block;
+        }
+        
+        .delete-btn:hover {
+            background: rgba(255, 0, 85, 0.4);
         }
         
         .summary-bar {
@@ -203,7 +284,7 @@
         .no-bins {
             color: #5a6a8a;
             font-style: italic;
-            padding: 20px;
+            padding: 10px;
             text-align: center;
         }
         
@@ -224,10 +305,123 @@
             background: rgba(0, 100, 200, 0.3);
         }
         
+        .login-btn {
+            background: rgba(255, 100, 0, 0.2);
+            border: 1px solid #ff6600;
+            color: #ff6600;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+        
+        .login-btn:hover {
+            background: rgba(255, 100, 0, 0.3);
+        }
+        
         .last-updated {
             color: #5a6a8a;
             font-size: 0.85rem;
             margin-left: auto;
+        }
+        
+        /* Login Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: rgba(0, 20, 40, 0.95);
+            border: 1px solid #00ff88;
+            border-radius: 12px;
+            padding: 30px;
+            width: 350px;
+            max-width: 90%;
+        }
+        
+        .modal-title {
+            font-family: 'Orbitron', monospace;
+            color: #00ff88;
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: #8892b0;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 40, 80, 0.5);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 5px;
+            color: #fff;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #00ff88;
+        }
+        
+        .form-error {
+            color: #ff0055;
+            font-size: 0.85rem;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .modal-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+        }
+        
+        .modal-btn.primary {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+        
+        .modal-btn.secondary {
+            background: rgba(100, 100, 100, 0.2);
+            border: 1px solid #666;
+            color: #888;
         }
     </style>
 </head>
@@ -245,13 +439,49 @@
         </div>
     </header>
 
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <h2 class="modal-title"><i class="fas fa-lock"></i> Admin Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div class="form-error" id="loginError"></div>
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn secondary" onclick="closeLoginModal()">Cancel</button>
+                    <button type="submit" class="modal-btn primary">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="districts-container">
+        <!-- Admin Bar -->
+        <div class="admin-bar hidden" id="adminBar">
+            <div class="admin-info">
+                <i class="fas fa-user-shield"></i> 
+                Logged in as: <strong id="adminUsername">admin</strong>
+            </div>
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+        
         <div class="page-header">
-            <h1 class="page-title"><i class="fas fa-map-marker-alt"></i> Bins by District</h1>
+            <h1 class="page-title"><i class="fas fa-map-marker-alt"></i> Districts & Zones</h1>
             <div style="display: flex; align-items: center;">
                 <span class="last-updated" id="lastUpdated">Loading...</span>
-                <button class="refresh-btn" onclick="loadDistrictData()">
+                <button class="refresh-btn" onclick="loadDistrictsData()">
                     <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="login-btn" id="loginBtn" onclick="showLoginModal()">
+                    <i class="fas fa-user-shield"></i> Admin
                 </button>
             </div>
         </div>
@@ -267,12 +497,12 @@
                 <div class="summary-label">Districts</div>
             </div>
             <div class="summary-card">
-                <div class="summary-value" id="criticalCount">--</div>
-                <div class="summary-label">Critical Bins</div>
+                <div class="summary-value" id="totalZones">--</div>
+                <div class="summary-label">Total Zones</div>
             </div>
             <div class="summary-card">
-                <div class="summary-value" id="avgFillLevel">--</div>
-                <div class="summary-label">Avg Fill %</div>
+                <div class="summary-value" id="criticalCount">--</div>
+                <div class="summary-label">Critical Bins</div>
             </div>
         </div>
 
@@ -283,74 +513,159 @@
     </div>
 
     <script>
-        // District coordinates mapping (approximate centers)
-        const DISTRICT_BOUNDS = {
-            'Colombo': { minLat: 6.85, maxLat: 7.00, minLon: 79.80, maxLon: 79.95 },
-            'Kurunegala': { minLat: 7.40, maxLat: 7.55, minLon: 80.30, maxLon: 80.45 },
-            'Kandy': { minLat: 7.25, maxLat: 7.35, minLon: 80.60, maxLon: 80.70 },
-            'Galle': { minLat: 6.00, maxLat: 6.10, minLon: 80.18, maxLon: 80.28 },
-            'Jaffna': { minLat: 9.65, maxLat: 9.75, minLon: 80.00, maxLon: 80.10 },
-            'Matara': { minLat: 5.93, maxLat: 6.03, minLon: 80.50, maxLon: 80.60 },
-            'Negombo': { minLat: 7.18, maxLat: 7.25, minLon: 79.82, maxLon: 79.88 },
-            'Anuradhapura': { minLat: 8.30, maxLat: 8.40, minLon: 80.38, maxLon: 80.45 },
-            'Ratnapura': { minLat: 6.65, maxLat: 6.75, minLon: 80.38, maxLon: 80.45 },
-            'Batticaloa': { minLat: 7.70, maxLat: 7.80, minLon: 81.68, maxLon: 81.75 }
+        const API_BASE = '/api';
+        let isAdmin = false;
+        let adminCredentials = null;
+        
+        // District prefix mapping for bins
+        const DISTRICT_PREFIX_MAP = {
+            'colombo': ['COL', 'B0'],
+            'kurunegala': ['KUR'],
+            'galle': ['GAL'],
+            'kandy': ['KAN'],
+            'matara': ['MAT']
         };
-
-        function getDistrictFromCoords(lat, lon) {
-            if (!lat || !lon) return 'Unknown';
-            
-            for (const [district, bounds] of Object.entries(DISTRICT_BOUNDS)) {
-                if (lat >= bounds.minLat && lat <= bounds.maxLat &&
-                    lon >= bounds.minLon && lon <= bounds.maxLon) {
-                    return district;
+        
+        function getDistrictForBin(binId) {
+            for (const [district, prefixes] of Object.entries(DISTRICT_PREFIX_MAP)) {
+                for (const prefix of prefixes) {
+                    if (binId.startsWith(prefix)) {
+                        return district;
+                    }
                 }
             }
-            return 'Other';
+            return null;
         }
-
+        
         function getFillClass(fillLevel) {
             if (fillLevel >= 90) return 'critical';
             if (fillLevel >= 70) return 'warning';
             return 'normal';
         }
-
-        function getBinItemClass(bin) {
-            if (bin.status === 'offline') return 'offline';
-            const fill = bin.current_fill_level || 0;
-            if (fill >= 90) return 'critical';
-            if (fill >= 70) return 'warning';
-            return '';
+        
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.add('active');
+            document.getElementById('username').focus();
         }
-
-        async function loadDistrictData() {
+        
+        function closeLoginModal() {
+            document.getElementById('loginModal').classList.remove('active');
+            document.getElementById('loginForm').reset();
+            document.getElementById('loginError').style.display = 'none';
+        }
+        
+        async function login(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
             try {
-                const response = await fetch('/api/bins');
-                const bins = await response.json();
+                const response = await fetch(`${API_BASE}/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    isAdmin = true;
+                    adminCredentials = btoa(`${username}:${password}`);
+                    document.getElementById('adminUsername').textContent = username;
+                    document.getElementById('adminBar').classList.remove('hidden');
+                    document.getElementById('loginBtn').style.display = 'none';
+                    document.body.classList.add('admin-mode');
+                    closeLoginModal();
+                    loadDistrictsData(); // Reload to show delete buttons
+                } else {
+                    const error = await response.json();
+                    document.getElementById('loginError').textContent = error.detail || 'Login failed';
+                    document.getElementById('loginError').style.display = 'block';
+                }
+            } catch (err) {
+                document.getElementById('loginError').textContent = 'Connection error';
+                document.getElementById('loginError').style.display = 'block';
+            }
+        }
+        
+        function logout() {
+            isAdmin = false;
+            adminCredentials = null;
+            document.getElementById('adminBar').classList.add('hidden');
+            document.getElementById('loginBtn').style.display = 'inline-block';
+            document.body.classList.remove('admin-mode');
+            loadDistrictsData();
+        }
+        
+        async function deleteBin(binId) {
+            if (!isAdmin || !adminCredentials) {
+                alert('Admin login required');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete bin ${binId}? This will remove all telemetry data.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/bins/${binId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Basic ${adminCredentials}`
+                    }
+                });
+                
+                if (response.ok) {
+                    alert(`Bin ${binId} deleted successfully`);
+                    loadDistrictsData();
+                } else {
+                    const error = await response.json();
+                    alert(`Error: ${error.detail}`);
+                }
+            } catch (err) {
+                alert('Error deleting bin: ' + err.message);
+            }
+        }
+        
+        function toggleZone(zoneId) {
+            const card = document.getElementById(`zone-${zoneId}`);
+            if (card) {
+                card.classList.toggle('expanded');
+            }
+        }
+        
+        async function loadDistrictsData() {
+            try {
+                // Fetch districts with zones from backend
+                const [districtsRes, binsRes] = await Promise.all([
+                    fetch(`${API_BASE}/districts`),
+                    fetch(`${API_BASE}/bins/latest`)
+                ]);
+                
+                const districtsData = await districtsRes.json();
+                const bins = await binsRes.json();
                 
                 // Group bins by district
-                const districtMap = {};
-                let totalFill = 0;
-                let criticalCount = 0;
-                
+                const binsByDistrict = {};
                 bins.forEach(bin => {
-                    const district = getDistrictFromCoords(bin.latitude, bin.longitude);
-                    if (!districtMap[district]) {
-                        districtMap[district] = [];
+                    const district = getDistrictForBin(bin.bin_id);
+                    if (district) {
+                        if (!binsByDistrict[district]) binsByDistrict[district] = [];
+                        binsByDistrict[district].push(bin);
                     }
-                    districtMap[district].push(bin);
-                    
-                    const fill = bin.current_fill_level || 0;
-                    totalFill += fill;
-                    if (fill >= 90) criticalCount++;
                 });
                 
                 // Update summary
+                let totalZones = 0;
+                let criticalCount = 0;
+                districtsData.districts.forEach(d => totalZones += d.zone_count);
+                bins.forEach(b => {
+                    if ((b.fill_pct || 0) >= 90) criticalCount++;
+                });
+                
                 document.getElementById('totalBinsCount').textContent = bins.length;
-                document.getElementById('totalDistricts').textContent = Object.keys(districtMap).length;
+                document.getElementById('totalDistricts').textContent = districtsData.districts.length;
+                document.getElementById('totalZones').textContent = totalZones;
                 document.getElementById('criticalCount').textContent = criticalCount;
-                document.getElementById('avgFillLevel').textContent = 
-                    bins.length > 0 ? Math.round(totalFill / bins.length) + '%' : '0%';
                 document.getElementById('lastUpdated').textContent = 
                     'Updated: ' + new Date().toLocaleTimeString();
                 
@@ -358,58 +673,73 @@
                 const grid = document.getElementById('districtsGrid');
                 grid.innerHTML = '';
                 
-                // Sort districts by bin count
-                const sortedDistricts = Object.entries(districtMap)
-                    .sort((a, b) => b[1].length - a[1].length);
-                
-                sortedDistricts.forEach(([district, districtBins]) => {
+                districtsData.districts.forEach(district => {
+                    const districtBins = binsByDistrict[district.id] || [];
                     const card = document.createElement('div');
                     card.className = 'district-card';
                     
-                    // Sort bins by fill level (highest first)
-                    districtBins.sort((a, b) => 
-                        (b.current_fill_level || 0) - (a.current_fill_level || 0));
-                    
-                    let binsHtml = '';
-                    districtBins.forEach(bin => {
-                        const fill = bin.current_fill_level || 0;
-                        const battery = bin.battery_level || 0;
-                        const fillClass = getFillClass(fill);
-                        const itemClass = getBinItemClass(bin);
-                        const batteryClass = battery < 20 ? 'low' : '';
+                    // Render zones
+                    let zonesHtml = '';
+                    district.zones.forEach(zone => {
+                        // Filter bins for this zone based on coordinates
+                        const zoneBins = districtBins.filter(bin => {
+                            if (!bin.lat || !bin.lon) return false;
+                            return bin.lat >= zone.bounds.south && 
+                                   bin.lat <= zone.bounds.north &&
+                                   bin.lon >= zone.bounds.west && 
+                                   bin.lon <= zone.bounds.east;
+                        });
                         
-                        binsHtml += `
-                            <div class="bin-item ${itemClass}">
-                                <div class="bin-info">
-                                    <div class="bin-id">${bin.bin_id}</div>
-                                    <div class="bin-location">${bin.location || 'No location'}</div>
-                                    <div class="bin-coords">
-                                        ${bin.latitude ? bin.latitude.toFixed(4) : 'N/A'}, 
-                                        ${bin.longitude ? bin.longitude.toFixed(4) : 'N/A'}
+                        // Render bins in zone
+                        let binsHtml = '';
+                        zoneBins.forEach(bin => {
+                            const fill = bin.fill_pct || 0;
+                            const fillClass = getFillClass(fill);
+                            const itemClass = fill >= 90 ? 'critical' : fill >= 70 ? 'warning' : '';
+                            
+                            binsHtml += `
+                                <div class="bin-item ${itemClass}">
+                                    <div class="bin-info">
+                                        <div class="bin-id">${bin.bin_id}</div>
+                                    </div>
+                                    <div class="bin-stats">
+                                        <div class="fill-level ${fillClass}">${Math.round(fill)}%</div>
+                                        ${isAdmin ? `<button class="delete-btn" onclick="deleteBin('${bin.bin_id}')"><i class="fas fa-trash"></i></button>` : ''}
                                     </div>
                                 </div>
-                                <div class="bin-stats">
-                                    <div class="fill-level ${fillClass}">${Math.round(fill)}%</div>
-                                    <div class="battery-level ${batteryClass}">
-                                        <i class="fas fa-battery-${battery > 50 ? 'full' : battery > 20 ? 'half' : 'empty'}"></i>
-                                        ${Math.round(battery)}%
+                            `;
+                        });
+                        
+                        if (zoneBins.length === 0) {
+                            binsHtml = '<div class="no-bins">No bins in this zone</div>';
+                        }
+                        
+                        zonesHtml += `
+                            <div class="zone-card" id="zone-${zone.id}" onclick="toggleZone('${zone.id}')">
+                                <div class="zone-header">
+                                    <div>
+                                        <div class="zone-name">${zone.name}</div>
+                                        <div class="zone-id">${zone.id}</div>
                                     </div>
+                                    <div class="zone-bins-count">${zoneBins.length} bins</div>
+                                </div>
+                                <div class="zone-bins-list" onclick="event.stopPropagation()">
+                                    ${binsHtml}
                                 </div>
                             </div>
                         `;
                     });
                     
-                    if (districtBins.length === 0) {
-                        binsHtml = '<div class="no-bins">No bins in this district</div>';
-                    }
-                    
                     card.innerHTML = `
                         <div class="district-header">
-                            <span class="district-name">${district}</span>
-                            <span class="district-count">${districtBins.length} bins</span>
+                            <span class="district-name">${district.name}</span>
+                            <div class="district-stats">
+                                <span class="stat-badge zones">${district.zone_count} zones</span>
+                                <span class="stat-badge">${districtBins.length} bins</span>
+                            </div>
                         </div>
-                        <div class="bins-list">
-                            ${binsHtml}
+                        <div class="zones-container">
+                            ${zonesHtml}
                         </div>
                     `;
                     
@@ -417,17 +747,18 @@
                 });
                 
             } catch (error) {
-                console.error('Error loading district data:', error);
+                console.error('Error loading data:', error);
                 document.getElementById('districtsGrid').innerHTML = 
                     '<div class="no-bins">Error loading data. Is the backend running?</div>';
             }
         }
-
-        // Load data on page load
-        loadDistrictData();
+        
+        // Initialize
+        document.getElementById('loginForm').addEventListener('submit', login);
+        loadDistrictsData();
         
         // Auto-refresh every 30 seconds
-        setInterval(loadDistrictData, 30000);
+        setInterval(loadDistrictsData, 30000);
     </script>
 </body>
 </html>

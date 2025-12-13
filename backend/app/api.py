@@ -3,12 +3,16 @@ FastAPI routes for CleanRoute Backend.
 Exposes endpoints for the Planner UI.
 """
 from typing import Optional, List, Dict
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from datetime import datetime
+import hashlib
+import secrets
 
 from . import db
 from . import mqtt_ingest
+from .zones import DISTRICTS
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Router
@@ -556,3 +560,249 @@ async def send_reminders():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Districts & Zones Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/districts")
+async def get_districts():
+    """Get all districts with their zones."""
+    districts_list = []
+    for district_name, district_data in DISTRICTS.items():
+        # Convert zones dict to list format for frontend
+        zones_list = []
+        for zone_key, zone_info in district_data.get("zones", {}).items():
+            zones_list.append({
+                "id": zone_info.get("id", zone_key),
+                "name": zone_info.get("name", zone_key),
+                "bounds": {
+                    "north": zone_info.get("bounds", {}).get("lat_max", 0),
+                    "south": zone_info.get("bounds", {}).get("lat_min", 0),
+                    "east": zone_info.get("bounds", {}).get("lon_max", 0),
+                    "west": zone_info.get("bounds", {}).get("lon_min", 0)
+                },
+                "depot": zone_info.get("depot", {}),
+                "color": zone_info.get("color", "#00ff88")
+            })
+        
+        districts_list.append({
+            "id": district_data.get("id", district_name.lower()),
+            "name": district_data.get("name", district_name),
+            "bounds": district_data.get("bounds", {}),
+            "center": district_data.get("center", {}),
+            "zone_count": len(zones_list),
+            "zones": zones_list
+        })
+    
+    return {"districts": districts_list}
+
+
+@router.get("/districts/{district_id}")
+async def get_district(district_id: str):
+    """Get a specific district with its zones."""
+    if district_id not in DISTRICTS:
+        raise HTTPException(status_code=404, detail=f"District '{district_id}' not found")
+    
+    district_data = DISTRICTS[district_id]
+    return {
+        "id": district_id,
+        "name": district_data["name"],
+        "bounds": district_data["bounds"],
+        "depot": district_data["depot"],
+        "zones": district_data["zones"]
+    }
+
+
+@router.get("/districts/{district_id}/zones")
+async def get_district_zones(district_id: str):
+    """Get all zones for a specific district."""
+    if district_id not in DISTRICTS:
+        raise HTTPException(status_code=404, detail=f"District '{district_id}' not found")
+    
+    return {
+        "district_id": district_id,
+        "district_name": DISTRICTS[district_id]["name"],
+        "zones": DISTRICTS[district_id]["zones"]
+    }
+
+
+@router.get("/districts/{district_id}/bins")
+async def get_district_bins(district_id: str):
+    """Get all bins in a district (bins with matching district prefix)."""
+    if district_id not in DISTRICTS:
+        raise HTTPException(status_code=404, detail=f"District '{district_id}' not found")
+    
+    # Get bins that start with the district prefix
+    prefix_map = {
+        "colombo": ["COL", "B0"],  # Legacy B001 bins are in Colombo
+        "kurunegala": ["KUR"],
+        "galle": ["GAL"],
+        "kandy": ["KAN"],
+        "matara": ["MAT"]
+    }
+    
+    prefixes = prefix_map.get(district_id, [])
+    all_bins = db.get_bins_latest()
+    
+    # Filter bins by district prefix
+    district_bins = []
+    for bin_data in all_bins:
+        for prefix in prefixes:
+            if bin_data["bin_id"].startswith(prefix):
+                district_bins.append(bin_data)
+                break
+    
+    return {
+        "district_id": district_id,
+        "district_name": DISTRICTS[district_id]["name"],
+        "bins": district_bins,
+        "count": len(district_bins)
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin Authentication
+# ─────────────────────────────────────────────────────────────────────────────
+
+security = HTTPBasic()
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using SHA-256."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    """Verify admin credentials."""
+    admin = db.get_admin_by_username(credentials.username)
+    
+    if admin is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"}
+        )
+    
+    password_hash = hash_password(credentials.password)
+    if not secrets.compare_digest(password_hash, admin["password_hash"]):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"}
+        )
+    
+    db.update_admin_last_login(credentials.username)
+    return credentials.username
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminLoginResponse(BaseModel):
+    success: bool
+    username: str
+    message: str
+
+
+@router.post("/admin/login", response_model=AdminLoginResponse)
+async def admin_login(request: AdminLoginRequest):
+    """
+    Admin login endpoint.
+    Returns success status for form-based login.
+    """
+    admin = db.get_admin_by_username(request.username)
+    
+    if admin is None:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    password_hash = hash_password(request.password)
+    if not secrets.compare_digest(password_hash, admin["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    db.update_admin_last_login(request.username)
+    
+    return AdminLoginResponse(
+        success=True,
+        username=request.username,
+        message="Login successful"
+    )
+
+
+@router.get("/admin/verify")
+async def verify_admin_session(username: str = Depends(verify_admin)):
+    """Verify admin is authenticated (using HTTP Basic Auth header)."""
+    return {"authenticated": True, "username": username}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin Operations (Protected)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.delete("/admin/bins/{bin_id}")
+async def delete_bin(bin_id: str, username: str = Depends(verify_admin)):
+    """
+    Delete a bin and all its related data.
+    Requires admin authentication.
+    """
+    # Check if bin exists
+    bin_data = db.get_bin_by_id(bin_id)
+    if bin_data is None:
+        raise HTTPException(status_code=404, detail=f"Bin '{bin_id}' not found")
+    
+    # Delete the bin
+    success = db.delete_bin(bin_id)
+    
+    if success:
+        return {
+            "success": True,
+            "message": f"Bin '{bin_id}' and all related data deleted",
+            "deleted_by": username
+        }
+    else:
+        raise HTTPException(status_code=500, detail="Failed to delete bin")
+
+
+@router.get("/admin/bins")
+async def get_all_bins_admin(username: str = Depends(verify_admin)):
+    """
+    Get all bins for admin management.
+    Includes additional details for admin view.
+    """
+    bins = db.get_all_bins()
+    return {
+        "bins": bins,
+        "count": len(bins),
+        "admin": username
+    }
+
+
+@router.post("/admin/setup")
+async def setup_admin(password: str = Query(..., description="Admin password to set")):
+    """
+    Initial admin setup. Creates default admin user.
+    Only works if no admin exists. For security, this should be disabled in production.
+    """
+    # Initialize admin table
+    db.init_admin_table()
+    
+    # Check if admin already exists
+    existing = db.get_admin_by_username("admin")
+    if existing:
+        raise HTTPException(status_code=400, detail="Admin user already exists")
+    
+    # Create admin user
+    password_hash = hash_password(password)
+    success = db.create_admin_user("admin", password_hash)
+    
+    if success:
+        return {
+            "success": True,
+            "message": "Admin user created successfully",
+            "username": "admin"
+        }
+    else:
+        raise HTTPException(status_code=500, detail="Failed to create admin user")

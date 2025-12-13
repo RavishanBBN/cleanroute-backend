@@ -283,3 +283,108 @@ def get_command_history(bin_id: str, limit: int = 50):
     with get_cursor() as cur:
         cur.execute(sql, (bin_id, limit))
         return cur.fetchall()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bin Management (Admin)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def delete_bin(bin_id: str) -> bool:
+    """
+    Delete a bin and all its associated data.
+    Returns True if bin was deleted, False if not found.
+    """
+    # First delete related records
+    sql_telemetry = "DELETE FROM telemetry WHERE bin_id = %s"
+    sql_alerts = "DELETE FROM alerts WHERE bin_id = %s"
+    sql_commands = "DELETE FROM commands_log WHERE bin_id = %s"
+    sql_bin = "DELETE FROM bins WHERE bin_id = %s RETURNING bin_id"
+    
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql_telemetry, (bin_id,))
+        cur.execute(sql_alerts, (bin_id,))
+        cur.execute(sql_commands, (bin_id,))
+        cur.execute(sql_bin, (bin_id,))
+        result = cur.fetchone()
+        return result is not None
+
+
+def get_bin_by_id(bin_id: str):
+    """Get a specific bin by ID."""
+    sql = """
+        SELECT bin_id, lat, lon, last_seen, last_emptied, device_status,
+               user_id, user_name, registered_at
+        FROM bins
+        WHERE bin_id = %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (bin_id,))
+        return cur.fetchone()
+
+
+def get_all_bins():
+    """Get all bins (basic info only)."""
+    sql = """
+        SELECT bin_id, lat, lon, last_seen, device_status
+        FROM bins
+        ORDER BY bin_id
+    """
+    with get_cursor() as cur:
+        cur.execute(sql)
+        return cur.fetchall()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin Authentication
+# ─────────────────────────────────────────────────────────────────────────────
+
+def init_admin_table():
+    """Create admin users table if not exists."""
+    sql = """
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            password_hash VARCHAR(256) NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            last_login TIMESTAMP
+        )
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql)
+
+
+def create_admin_user(username: str, password_hash: str) -> bool:
+    """Create a new admin user."""
+    sql = """
+        INSERT INTO admin_users (username, password_hash)
+        VALUES (%s, %s)
+        ON CONFLICT (username) DO NOTHING
+        RETURNING id
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (username, password_hash))
+        result = cur.fetchone()
+        return result is not None
+
+
+def get_admin_by_username(username: str):
+    """Get admin user by username."""
+    sql = """
+        SELECT id, username, password_hash, created_at, last_login
+        FROM admin_users
+        WHERE username = %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (username,))
+        return cur.fetchone()
+
+
+def update_admin_last_login(username: str):
+    """Update admin's last login timestamp."""
+    sql = """
+        UPDATE admin_users
+        SET last_login = NOW()
+        WHERE username = %s
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (username,))

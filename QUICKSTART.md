@@ -1,281 +1,159 @@
 # CleanRoute - Quick Start Guide
 
-## 🚀 Get Up and Running in 5 Minutes
+## Prerequisites
 
-### Prerequisites
+- PostgreSQL running with database `cleanroute_db`
+- Python 3.10+ with venv
+- Mosquitto MQTT broker installed
+
+---
+
+## 🚀 Start the Full Stack (4 Terminals)
+
+### Terminal 1: MQTT Broker (Secure Mode)
+
 ```bash
-# Required services
-✅ Mosquitto MQTT broker
-✅ PostgreSQL database
-✅ Python 3.8+
+# Stop system mosquitto if running
+sudo systemctl stop mosquitto
+
+# Start with TLS + Authentication
+mosquitto -c /home/thevinduk/Repositories/cleanroute-backend/mqtt/mosquitto_secure.conf -v
+```
+
+**Expected output:**
+```
+mosquitto version 2.0.x starting
+Opening ipv4 listen socket on port 1883 (localhost only)
+Opening ipv4 listen socket on port 8883 (TLS)
 ```
 
 ---
 
-## Step 1: Start the Server (1 min)
+### Terminal 2: FastAPI Backend (Secure Mode)
 
 ```bash
-cd /home/thevinduk/Repositories/cleanroute-backend/backend
-source .venv/bin/activate
+cd /home/thevinduk/Repositories/cleanroute-backend/backend && \
+source .venv/bin/activate && \
+source .env.secure && \
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 **Expected output:**
 ```
 🚀 Starting CleanRoute Backend...
-✅ Connected to MQTT broker at localhost:1883
-📡 Subscribed to: cleanroute/bins/+/telemetry
-INFO: Uvicorn running on http://0.0.0.0:8000
+🔐 TLS enabled with CA: .../mqtt/certs/ca.crt
+🔑 Authenticating as: backend_service
+✅ Connected to MQTT broker at localhost:8883
+📡 Subscribed to: cleanroute/bins/+/telemetry (QoS=1)
+Uvicorn running on http://0.0.0.0:8000
 ```
 
 ---
 
-## Step 2: Verify System Health (30 sec)
+### Terminal 3: Flask Frontend
 
 ```bash
-curl http://localhost:8000/health
+cd /home/thevinduk/Repositories/cleanroute-backend/frontend && \
+source ../backend/.venv/bin/activate && \
+python app.py
 ```
 
-**Expected response:**
-```json
-{
-  "status": "ok",
-  "database": true,
-  "mqtt": {
-    "connected": true,
-    "broker": "localhost:1883"
-  }
-}
+**Expected output:**
+```
+🚀 Starting CleanRoute Frontend...
+�� Dashboard: http://localhost:5001
+🔗 Backend: http://localhost:8000 (enabled)
+Running on http://0.0.0.0:5001
 ```
 
 ---
 
-## Step 3: Test Basic Flow (2 min)
+### Terminal 4: Test / Simulate Devices
 
-### A) Send telemetry from a bin:
+#### Publish as a device (secure):
 ```bash
-mosquitto_pub -h localhost -t cleanroute/bins/B001/telemetry -m '{
-  "bin_id":"B001",
-  "ts":"2025-12-12T10:00:00Z",
-  "fill_pct":72.5,
-  "batt_v":3.85,
-  "temp_c":31.4,
-  "lat":6.9102,
-  "lon":79.8623
-}'
+mosquitto_pub -h localhost -p 8883 \
+  --cafile /home/thevinduk/Repositories/cleanroute-backend/mqtt/certs/ca.crt \
+  -u "GAL001" -P "galle_bin_001_secret" \
+  -t "cleanroute/bins/GAL001/telemetry" \
+  -m '{"ts":"2025-12-13T10:00:00Z","bin_id":"GAL001","fill_pct":55.0,"batt_v":4.0,"temp_c":29.5,"lat":6.0328,"lon":80.2170}'
 ```
 
-### B) Check if data arrived:
+#### Publish multiple bins:
 ```bash
-curl http://localhost:8000/bins/latest
-```
+# Colombo bin
+mosquitto_pub -h localhost -p 8883 \
+  --cafile /home/thevinduk/Repositories/cleanroute-backend/mqtt/certs/ca.crt \
+  -u "COL001" -P "bin_COL001_secret" \
+  -t "cleanroute/bins/COL001/telemetry" \
+  -m '{"ts":"2025-12-13T10:00:00Z","bin_id":"COL001","fill_pct":78.0,"batt_v":3.9,"temp_c":30.0,"lat":6.9271,"lon":79.8612}'
 
-### C) Register a user device:
-```bash
-curl -X POST http://localhost:8000/devices/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "bin_id": "B001",
-    "user_id": "USER001",
-    "user_name": "John Doe",
-    "user_phone": "+94771234567",
-    "wifi_ssid": "HomeWiFi",
-    "lat": 6.9271,
-    "lon": 79.8612
-  }'
+# Kandy bin
+mosquitto_pub -h localhost -p 8883 \
+  --cafile /home/thevinduk/Repositories/cleanroute-backend/mqtt/certs/ca.crt \
+  -u "KAN001" -P "kandy_bin_001_secret" \
+  -t "cleanroute/bins/KAN001/telemetry" \
+  -m '{"ts":"2025-12-13T10:00:00Z","bin_id":"KAN001","fill_pct":42.0,"batt_v":4.1,"temp_c":26.0,"lat":7.2906,"lon":80.6337}'
 ```
 
 ---
 
-## Step 4: Test IoT Features (2 min)
+## 🌐 Access URLs
 
-### Monitor commands being sent:
-Open a new terminal:
+| Service | URL |
+|---------|-----|
+| Frontend Dashboard | http://localhost:5001 |
+| Districts View | http://localhost:5001/districts |
+| Backend API Docs | http://localhost:8000/docs |
+| Health Check | http://localhost:8000/health |
+
+---
+
+## 🔐 Device Credentials
+
+| Bin ID | Username | Password |
+|--------|----------|----------|
+| Backend | `backend_service` | `CleanRoute@2025` |
+| B001 | `B001` | `bin_B001_secret` |
+| COL001 | `COL001` | `bin_COL001_secret` |
+| COL002 | `COL002` | `bin_COL002_secret` |
+| KUR001 | `KUR001` | `bin_KUR001_secret` |
+| GAL001 | `GAL001` | `galle_bin_001_secret` |
+| GAL002 | `GAL002` | `galle_bin_002_secret` |
+| GAL003 | `GAL003` | `galle_bin_003_secret` |
+| KAN001 | `KAN001` | `kandy_bin_001_secret` |
+| KAN002 | `KAN002` | `kandy_bin_002_secret` |
+| MAT001 | `MAT001` | `matara_bin_001_secret` |
+
+### Add new device:
 ```bash
-mosquitto_sub -h localhost -t 'cleanroute/bins/+/command' -v
-```
-
-### Send commands from API:
-```bash
-# Wake up a bin
-curl -X POST http://localhost:8000/commands/B001/wake
-
-# Start collection day (wakes ALL bins)
-curl -X POST http://localhost:8000/collection/start
-
-# Check fleet health
-curl http://localhost:8000/fleet/health
-
-# Get device health
-curl http://localhost:8000/devices/B001/health
-
-# Run health checks (generates alerts)
-curl -X POST http://localhost:8000/monitoring/health-check
-
-# View alerts
-curl http://localhost:8000/alerts
+mosquitto_passwd -b mqtt/passwd <BIN_ID> <PASSWORD>
 ```
 
 ---
 
-## Step 5: Run Test Suite (Optional)
+## 🛑 Stopping Services
 
-```bash
-cd backend
-python test_iot_features.py
-```
-
-This will test all 25 endpoints automatically.
-
----
-
-## 🎯 Common Use Cases
-
-### Scenario 1: Collection Day Workflow
-
-```bash
-# Morning - Start collection
-curl -X POST http://localhost:8000/collection/start?collection_hours=12
-
-# Check status
-curl http://localhost:8000/fleet/health
-
-# Send reminders to offline bins
-curl -X POST http://localhost:8000/collection/remind
-
-# Evening - End collection
-curl -X POST http://localhost:8000/collection/end
-```
-
-### Scenario 2: Monitor Single Device
-
-```bash
-# Get health status
-curl http://localhost:8000/devices/B001/health
-
-# Get recent telemetry
-curl "http://localhost:8000/telemetry/recent?bin_id=B001&limit=10"
-
-# Get command history
-curl http://localhost:8000/commands/B001/history
-
-# Wake device
-curl -X POST http://localhost:8000/commands/B001/wake
-```
-
-### Scenario 3: User Management
-
-```bash
-# Register device
-curl -X POST http://localhost:8000/devices/register -H "Content-Type: application/json" -d '{...}'
-
-# Get user's devices
-curl http://localhost:8000/devices/user/USER001
-
-# Get alerts for user's bins
-curl "http://localhost:8000/alerts?bin_id=B001"
-```
-
----
-
-## 📊 API Documentation
-
-Once server is running, visit:
-- **Interactive docs**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Terminal 1-3:** Press `Ctrl+C`
+- **Kill by port:** `sudo kill $(sudo lsof -t -i:8000)`
 
 ---
 
 ## 🔧 Troubleshooting
 
-### Server won't start
+### "Address already in use"
 ```bash
-# Check if PostgreSQL is running
-sudo systemctl status postgresql
-
-# Check if Mosquitto is running
-sudo systemctl status mosquitto
-
-# Check if port 8000 is available
-lsof -i :8000
+# Kill process on port
+sudo kill $(sudo lsof -t -i:8000)  # Backend
+sudo kill $(sudo lsof -t -i:5001)  # Frontend
+sudo systemctl stop mosquitto       # Broker
 ```
 
-### Database connection error
-```bash
-# Test database connection
-psql "dbname=cleanroute_db user=cleanroute_user password=cleanroute_pass host=localhost" -c "SELECT 1"
+### Backend can't connect to MQTT
+- Make sure Terminal 1 (Mosquitto) is running first
+- Check TLS is enabled: `source .env.secure`
 
-# If tables missing, recreate:
-psql "dbname=cleanroute_db user=cleanroute_user password=cleanroute_pass host=localhost" < schema.sql
-```
-
-### MQTT not connecting
-```bash
-# Test MQTT broker
-mosquitto_sub -h localhost -t test/# -v
-
-# Check Mosquitto logs
-sudo journalctl -u mosquitto -f
-```
-
----
-
-## 📚 Next Steps
-
-1. **Read Documentation**:
-   - `IMPLEMENTATION_SUMMARY.md` - What we built
-   - `ARCHITECTURE.md` - System design
-   - `DEVICE_SETUP.md` - Hardware setup
-
-2. **Simulate Multiple Bins**:
-   - Create bin simulator (coming next)
-   - Generate realistic traffic
-
-3. **Build Dashboard**:
-   - React/Vue web UI
-   - Map view with real-time updates
-
-4. **Deploy to Cloud**:
-   - Oracle Free Tier
-   - AWS / Railway
-
-5. **Add ML Forecasting**:
-   - EWMA overflow prediction
-   - Route optimization
-
----
-
-## 🎓 For Demo/Report
-
-### Show These Features:
-
-1. **Device Registration** → `/devices/register`
-2. **Real-time Telemetry** → Send MQTT, check `/bins/latest`
-3. **Command & Control** → Wake/sleep commands
-4. **Health Monitoring** → `/fleet/health`, alerts
-5. **Collection Workflow** → Start/remind/end collection day
-6. **Power Management** → Sleep mode automation
-
-### Key Talking Points:
-
-- ✅ Complete IoT stack (hardware → cloud → UI)
-- ✅ Bidirectional communication (not just logging)
-- ✅ Power-efficient (2-year battery life)
-- ✅ Scalable (MQTT + PostgreSQL)
-- ✅ User-centric (automated workflows)
-- ✅ Production-ready architecture
-
----
-
-## 🆘 Need Help?
-
-- Check server logs for errors
-- Review `backend/README.md` for API details
-- Test with `test_iot_features.py`
-- Verify MQTT messages with `mosquitto_sub`
-
----
-
-**You're all set! 🎉**
-
-The backend is fully functional with device management, commands, alerts, and collection workflows. Time to build the frontend or add more bins!
+### Bins not showing on map
+- Click "Fit All Bins" button
+- Check bins have valid lat/lon coordinates
+- View console (F12) for errors

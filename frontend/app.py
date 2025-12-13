@@ -26,7 +26,7 @@ CORS(app)
 # CONFIGURATION
 # =============================================================================
 # FastAPI backend URL (PostgreSQL)
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000/api")
 
 # Set to True to use FastAPI backend, False to use CSV files
 USE_BACKEND = os.environ.get("USE_BACKEND", "true").lower() == "true"
@@ -599,6 +599,77 @@ def get_route_by_zone(target_time):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# ADMIN API PROXY (Forward to FastAPI Backend)
+# =============================================================================
+
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    """Proxy admin login to FastAPI backend."""
+    try:
+        from flask import request
+        resp = requests.post(
+            f"{BACKEND_URL}/admin/login",
+            json=request.get_json(),
+            timeout=5
+        )
+        return jsonify(resp.json()), resp.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({'detail': f'Backend connection error: {str(e)}'}), 503
+
+
+@app.route('/api/admin/setup', methods=['POST'])
+def admin_setup():
+    """Proxy admin setup to FastAPI backend."""
+    try:
+        from flask import request
+        password = request.args.get('password')
+        resp = requests.post(
+            f"{BACKEND_URL}/admin/setup?password={password}",
+            timeout=5
+        )
+        return jsonify(resp.json()), resp.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({'detail': f'Backend connection error: {str(e)}'}), 503
+
+
+@app.route('/api/admin/bins/<bin_id>', methods=['DELETE'])
+def admin_delete_bin(bin_id):
+    """Proxy bin deletion to FastAPI backend."""
+    try:
+        from flask import request
+        auth_header = request.headers.get('Authorization')
+        headers = {'Authorization': auth_header} if auth_header else {}
+        resp = requests.delete(
+            f"{BACKEND_URL}/admin/bins/{bin_id}",
+            headers=headers,
+            timeout=5
+        )
+        return jsonify(resp.json()), resp.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({'detail': f'Backend connection error: {str(e)}'}), 503
+
+
+@app.route('/api/districts')
+def get_districts():
+    """Proxy districts endpoint to FastAPI backend."""
+    try:
+        resp = requests.get(f"{BACKEND_URL}/districts", timeout=5)
+        return jsonify(resp.json()), resp.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({'detail': f'Backend connection error: {str(e)}'}), 503
+
+
+@app.route('/api/bins/latest')
+def get_bins_latest():
+    """Proxy bins/latest endpoint to FastAPI backend."""
+    try:
+        resp = requests.get(f"{BACKEND_URL}/bins/latest", timeout=5)
+        return jsonify(resp.json()), resp.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({'detail': f'Backend connection error: {str(e)}'}), 503
 
 
 if __name__ == '__main__':
