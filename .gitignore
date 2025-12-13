@@ -214,3 +214,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# MQTT Security - DO NOT COMMIT
+mqtt/passwd
+mqtt/certs/*.key
+mqtt/CREDENTIALS.md
+backend/.env.secure

@@ -12,9 +12,13 @@ Command Types:
 - reset_emptied: Reset the emptied flag
 - get_status: Request immediate status update
 - update_config: Send new configuration
+
+Security: Supports TLS encryption and username/password authentication.
 """
 import json
 import logging
+import ssl
+import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -32,16 +36,51 @@ command_client = None
 
 
 def init_command_client():
-    """Initialize a separate MQTT client for publishing commands."""
+    """
+    Initialize a separate MQTT client for publishing commands.
+    Supports TLS + authentication when MQTT_USE_TLS=true.
+    """
     global command_client
     if command_client is None:
         command_client = mqtt.Client(client_id="cleanroute_command_publisher")
+        
+        # Determine connection mode
+        if config.MQTT_USE_TLS:
+            port = config.MQTT_TLS_PORT
+            
+            # Configure TLS
+            ca_cert_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                config.MQTT_CA_CERT
+            )
+            
+            if not os.path.exists(ca_cert_path):
+                logger.error(f"❌ CA certificate not found: {ca_cert_path}")
+                raise FileNotFoundError(f"CA certificate not found: {ca_cert_path}")
+            
+            command_client.tls_set(
+                ca_certs=ca_cert_path,
+                tls_version=ssl.PROTOCOL_TLSv1_2
+            )
+            
+            # Set username/password authentication
+            command_client.username_pw_set(
+                config.MQTT_USERNAME,
+                config.MQTT_PASSWORD
+            )
+            
+            logger.info(f"🔐 Command client TLS enabled")
+        else:
+            port = config.MQTT_PORT
+            logger.info("⚠️  Command client running in INSECURE mode")
+        
         try:
-            command_client.connect(config.MQTT_BROKER, config.MQTT_PORT, keepalive=60)
+            command_client.connect(config.MQTT_BROKER, port, keepalive=60)
             command_client.loop_start()
-            logger.info("📤 Command publisher initialized")
+            logger.info(f"📤 Command publisher initialized on {config.MQTT_BROKER}:{port}")
         except Exception as e:
             logger.error(f"❌ Failed to initialize command client: {e}")
+            raise
 
 
 def stop_command_client():

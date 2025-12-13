@@ -14,10 +14,15 @@ Payload format:
     "lat": 6.9102,
     "lon": 79.8623
 }
+
+Security: Supports TLS encryption and username/password authentication.
+Set MQTT_USE_TLS=true to enable secure connection on port 8883.
 """
 import json
 import logging
 import threading
+import ssl
+import os
 from datetime import datetime
 from dateutil import parser as date_parser
 
@@ -160,6 +165,10 @@ def start_mqtt_ingest():
     """
     Start the MQTT ingest service in a background thread.
     Call this from your FastAPI startup.
+    
+    Supports two modes:
+    - Insecure (default): Plain MQTT on port 1883
+    - Secure (MQTT_USE_TLS=true): TLS + Auth on port 8883
     """
     global mqtt_client
     
@@ -168,13 +177,45 @@ def start_mqtt_ingest():
     mqtt_client.on_disconnect = on_disconnect
     mqtt_client.on_message = on_message
     
+    # Determine connection mode
+    if config.MQTT_USE_TLS:
+        port = config.MQTT_TLS_PORT
+        
+        # Configure TLS
+        ca_cert_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            config.MQTT_CA_CERT
+        )
+        
+        if not os.path.exists(ca_cert_path):
+            logger.error(f"❌ CA certificate not found: {ca_cert_path}")
+            raise FileNotFoundError(f"CA certificate not found: {ca_cert_path}")
+        
+        mqtt_client.tls_set(
+            ca_certs=ca_cert_path,
+            tls_version=ssl.PROTOCOL_TLSv1_2
+        )
+        
+        # Set username/password authentication
+        mqtt_client.username_pw_set(
+            config.MQTT_USERNAME,
+            config.MQTT_PASSWORD
+        )
+        
+        logger.info(f"🔐 TLS enabled with CA: {ca_cert_path}")
+        logger.info(f"🔑 Authenticating as: {config.MQTT_USERNAME}")
+    else:
+        port = config.MQTT_PORT
+        logger.info("⚠️  Running in INSECURE mode (no TLS)")
+    
     try:
-        mqtt_client.connect(config.MQTT_BROKER, config.MQTT_PORT, keepalive=60)
+        mqtt_client.connect(config.MQTT_BROKER, port, keepalive=60)
         # Start network loop in background thread
         mqtt_client.loop_start()
-        logger.info("🚀 MQTT ingest service started")
+        logger.info(f"🚀 MQTT ingest service started on {config.MQTT_BROKER}:{port}")
     except Exception as e:
         logger.error(f"❌ Failed to start MQTT ingest: {e}")
+        raise
 
 
 def stop_mqtt_ingest():
@@ -188,9 +229,12 @@ def stop_mqtt_ingest():
 
 def get_ingest_status():
     """Get current status of the MQTT ingest service."""
+    port = config.MQTT_TLS_PORT if config.MQTT_USE_TLS else config.MQTT_PORT
     return {
         "connected": mqtt_connected,
-        "broker": f"{config.MQTT_BROKER}:{config.MQTT_PORT}",
+        "broker": f"{config.MQTT_BROKER}:{port}",
         "topic": config.MQTT_TOPIC,
-        "messages_processed": message_count
+        "messages_processed": message_count,
+        "tls_enabled": config.MQTT_USE_TLS,
+        "authenticated": config.MQTT_USE_TLS  # Auth is required with TLS
     }

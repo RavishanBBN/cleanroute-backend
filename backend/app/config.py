@@ -11,6 +11,13 @@ MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "cleanroute/bins/+/telemetry")
 
+# MQTT Security Settings (TLS + Authentication)
+MQTT_USE_TLS = os.getenv("MQTT_USE_TLS", "false").lower() == "true"
+MQTT_TLS_PORT = int(os.getenv("MQTT_TLS_PORT", 8883))
+MQTT_CA_CERT = os.getenv("MQTT_CA_CERT", "mqtt/certs/ca.crt")
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "backend_service")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "CleanRoute@2025")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # PostgreSQL Settings
 # ─────────────────────────────────────────────────────────────────────────────
