@@ -92,17 +92,24 @@ async def get_bins_latest():
 
 @router.get("/telemetry/recent", response_model=List[TelemetryRecord])
 async def get_recent_telemetry(
-    bin_id: str = Query(..., description="Bin ID to fetch telemetry for"),
+    bin_id: Optional[str] = Query(None, description="Bin ID to fetch telemetry for (optional - omit to get all bins)"),
     limit: int = Query(100, ge=1, le=1000, description="Number of records to return")
 ):
     """
-    Get recent telemetry records for a specific bin.
+    Get recent telemetry records.
+    - If bin_id is provided: returns telemetry for that specific bin
+    - If bin_id is omitted: returns telemetry for all bins
     Returns the most recent N records ordered by timestamp descending.
     """
     try:
-        rows = db.get_recent_telemetry(bin_id, limit)
-        if not rows:
-            raise HTTPException(status_code=404, detail=f"No telemetry found for bin: {bin_id}")
+        if bin_id:
+            rows = db.get_recent_telemetry(bin_id, limit)
+            if not rows:
+                raise HTTPException(status_code=404, detail=f"No telemetry found for bin: {bin_id}")
+        else:
+            rows = db.get_all_recent_telemetry(limit)
+            if not rows:
+                return []  # Return empty list instead of 404 for all-bins query
         return [TelemetryRecord(**dict(row)) for row in rows]
     except HTTPException:
         raise

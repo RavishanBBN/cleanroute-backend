@@ -72,9 +72,18 @@ async function loadBins() {
         markers = {};
         
         // Add markers for each bin
+        let validCount = 0;
+        let invalidCount = 0;
         allBins.forEach(bin => {
+            if (bin.latitude && bin.longitude) {
+                validCount++;
+            } else {
+                invalidCount++;
+            }
             addBinMarker(bin);
         });
+        
+        console.log(`Loaded ${allBins.length} bins: ${validCount} with coordinates, ${invalidCount} without`);
         
     } catch (error) {
         console.error('Error loading bins:', error);
@@ -84,6 +93,12 @@ async function loadBins() {
 
 // Add bin marker to map
 function addBinMarker(bin) {
+    // Skip bins without valid coordinates
+    if (!bin.latitude || !bin.longitude || isNaN(bin.latitude) || isNaN(bin.longitude)) {
+        console.warn(`Skipping bin ${bin.bin_id} - no valid coordinates (lat: ${bin.latitude}, lon: ${bin.longitude})`);
+        return;
+    }
+    
     const fillLevel = bin.current_fill_level || 0;
     const color = getBinColor(fillLevel, bin.status);
     
@@ -434,6 +449,33 @@ function resetView() {
     map.setView([6.9271, 79.8612], 12);
     
     showNotification('View reset', 'info');
+}
+
+// Fit map to show all bins
+function fitToAllBins() {
+    if (allBins.length === 0) {
+        showNotification('No bins to display', 'warning');
+        return;
+    }
+    
+    // Filter bins with valid coordinates
+    const validBins = allBins.filter(bin => 
+        bin.latitude && bin.longitude && 
+        !isNaN(bin.latitude) && !isNaN(bin.longitude)
+    );
+    
+    if (validBins.length === 0) {
+        showNotification('No bins with valid coordinates', 'warning');
+        return;
+    }
+    
+    // Create bounds
+    const bounds = L.latLngBounds(validBins.map(bin => [bin.latitude, bin.longitude]));
+    
+    // Fit map to bounds with padding
+    map.fitBounds(bounds, { padding: [50, 50] });
+    
+    showNotification(`Showing ${validBins.length} bins`, 'info');
 }
 
 // Show bin details in modal

@@ -1,6 +1,8 @@
 """
 CleanRoute Frontend Server
 Modern web interface for waste bin monitoring and route optimization
+
+Integrates with FastAPI backend (PostgreSQL) with CSV fallback
 """
 from flask import Flask, render_template, jsonify
 from flask_cors import CORS
@@ -10,6 +12,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import json
+import requests
 
 # Add backend to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
@@ -19,7 +22,16 @@ from app.route_optimizer import optimize_route
 app = Flask(__name__)
 CORS(app)
 
-# Path to mock data
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+# FastAPI backend URL (PostgreSQL)
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
+
+# Set to True to use FastAPI backend, False to use CSV files
+USE_BACKEND = os.environ.get("USE_BACKEND", "true").lower() == "true"
+
+# Path to mock data (fallback)
 MOCK_DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'backend', 'mock_data')
 
 # EWMA configuration
@@ -108,10 +120,46 @@ def predict_bin_fill(bin_telemetry, target_time):
     }
 
 def load_bins():
-    """Load bin configuration from CSV"""
+    """Load bin configuration from FastAPI backend (PostgreSQL) or CSV fallback"""
+    
+    # Try FastAPI backend first
+    if USE_BACKEND:
+        try:
+            print(f"📡 Fetching bins from backend: {BACKEND_URL}/bins/latest")
+            response = requests.get(f"{BACKEND_URL}/bins/latest", timeout=5)
+            response.raise_for_status()
+            bins_data = response.json()
+            
+            # Transform backend response to expected format
+            bins = []
+            for bin_info in bins_data:
+                bins.append({
+                    'bin_id': bin_info.get('bin_id'),
+                    'latitude': bin_info.get('lat'),
+                    'longitude': bin_info.get('lon'),
+                    'location': bin_info.get('location', bin_info.get('bin_id')),
+                    'type': bin_info.get('bin_type', 'general'),
+                    'capacity_liters': bin_info.get('capacity_l', 120),
+                    # Include live telemetry data from backend
+                    'current_fill_level': bin_info.get('fill_pct', 0),
+                    'battery_level': (bin_info.get('batt_v', 4.2) / 4.2 * 100),
+                    'temperature': bin_info.get('temp_c'),
+                    'last_updated': bin_info.get('last_seen'),
+                    'status': 'active' if bin_info.get('is_online') else 'offline'
+                })
+            
+            print(f"✅ Loaded {len(bins)} bins from PostgreSQL backend")
+            return bins
+            
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ Backend unavailable ({e}), falling back to CSV")
+        except Exception as e:
+            print(f"⚠️ Error parsing backend response: {e}")
+    
+    # Fallback to CSV
     try:
         csv_path = os.path.join(MOCK_DATA_PATH, 'bins_config.csv')
-        print(f"Loading bins from: {csv_path}")
+        print(f"📂 Loading bins from CSV: {csv_path}")
         bins_df = pd.read_csv(csv_path)
         
         # Rename columns to expected names
@@ -133,10 +181,48 @@ def load_bins():
         raise
 
 def load_telemetry():
-    """Load telemetry data from CSV"""
+    """Load telemetry data from FastAPI backend (PostgreSQL) or CSV fallback"""
+    
+    # Try FastAPI backend first
+    if USE_BACKEND:
+        try:
+            print(f"📡 Fetching telemetry from backend: {BACKEND_URL}/telemetry/recent")
+            response = requests.get(f"{BACKEND_URL}/telemetry/recent?limit=500", timeout=5)
+            response.raise_for_status()
+            telemetry_data = response.json()
+            
+            # Transform backend response to DataFrame
+            records = []
+            for record in telemetry_data:
+                battery_v = record.get('batt_v', 4.2)
+                battery_pct = (battery_v / 4.2 * 100) if battery_v else 100
+                
+                records.append({
+                    'bin_id': record.get('bin_id'),
+                    'timestamp': pd.to_datetime(record.get('ts')),
+                    'fill_level': record.get('fill_pct', 0),
+                    'battery_voltage': battery_v,
+                    'battery_level': min(100, max(0, battery_pct)),
+                    'temperature': record.get('temp_c'),
+                    'status': 'active' if battery_pct >= 20 else 'low_battery',
+                    'emptied': record.get('emptied', False)
+                })
+            
+            telemetry_df = pd.DataFrame(records)
+            print(f"✅ Loaded {len(telemetry_df)} telemetry records from PostgreSQL backend")
+            return telemetry_df
+            
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ Backend unavailable ({e}), falling back to CSV")
+        except Exception as e:
+            print(f"⚠️ Error parsing backend telemetry: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Fallback to CSV
     try:
         csv_path = os.path.join(MOCK_DATA_PATH, 'telemetry_data.csv')
-        print(f"Loading telemetry from: {csv_path}")
+        print(f"📂 Loading telemetry from CSV: {csv_path}")
         telemetry_df = pd.read_csv(csv_path)
         
         # Rename columns to expected names
@@ -167,6 +253,11 @@ def load_telemetry():
 def index():
     """Main dashboard page"""
     return render_template('index.html')
+
+@app.route('/districts')
+def districts():
+    """Bins by district page"""
+    return render_template('districts.html')
 
 @app.route('/api/bins')
 def get_bins():
@@ -397,4 +488,6 @@ def get_stats():
 if __name__ == '__main__':
     print("🚀 Starting CleanRoute Frontend...")
     print("📍 Dashboard: http://localhost:5001")
+    print(f"🔗 Backend: {BACKEND_URL} ({'enabled' if USE_BACKEND else 'disabled'})")
+    print(f"📂 CSV fallback: {MOCK_DATA_PATH}")
     app.run(host='0.0.0.0', port=5001, debug=True)

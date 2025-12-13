@@ -147,6 +147,19 @@ def get_recent_telemetry(bin_id: str, limit: int = 100):
         return cur.fetchall()
 
 
+def get_all_recent_telemetry(limit: int = 500):
+    """Get the most recent telemetry records across all bins."""
+    sql = """
+        SELECT id, ts, bin_id, fill_pct, batt_v, temp_c, emptied, lat, lon, received_at
+        FROM telemetry
+        ORDER BY ts DESC
+        LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (limit,))
+        return cur.fetchall()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Device Management Operations
 # ─────────────────────────────────────────────────────────────────────────────

@@ -4,3 +4,8 @@ paho-mqtt
 psycopg2-binary
 python-dateutil
 pydantic
+flask
+flask-cors
+pandas
+numpy
+requests

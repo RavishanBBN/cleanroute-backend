@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CleanRoute - Bins by District</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <style>
+        .districts-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .page-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 2rem;
+            color: #00ff88;
+        }
+        
+        .back-btn {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .back-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+        }
+        
+        .districts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .district-card {
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .district-card:hover {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+        }
+        
+        .district-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        }
+        
+        .district-name {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.3rem;
+            color: #00ff88;
+        }
+        
+        .district-count {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        
+        .bins-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .bin-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(0, 40, 80, 0.5);
+            border-radius: 8px;
+            border-left: 4px solid #00ff88;
+        }
+        
+        .bin-item.warning {
+            border-left-color: #ffaa00;
+        }
+        
+        .bin-item.critical {
+            border-left-color: #ff0055;
+        }
+        
+        .bin-item.offline {
+            border-left-color: #666;
+            opacity: 0.7;
+        }
+        
+        .bin-info {
+            flex: 1;
+        }
+        
+        .bin-id {
+            font-family: 'Orbitron', monospace;
+            color: #fff;
+            font-size: 1rem;
+        }
+        
+        .bin-location {
+            color: #8892b0;
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+        
+        .bin-coords {
+            color: #5a6a8a;
+            font-size: 0.75rem;
+            margin-top: 2px;
+        }
+        
+        .bin-stats {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .fill-level {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .fill-level.normal { color: #00ff88; }
+        .fill-level.warning { color: #ffaa00; }
+        .fill-level.critical { color: #ff0055; }
+        
+        .battery-level {
+            font-size: 0.9rem;
+            color: #8892b0;
+        }
+        
+        .battery-level i {
+            margin-right: 5px;
+        }
+        
+        .battery-level.low {
+            color: #ff0055;
+        }
+        
+        .summary-bar {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .summary-card {
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 12px;
+            padding: 20px 30px;
+            text-align: center;
+            min-width: 150px;
+        }
+        
+        .summary-value {
+            font-family: 'Orbitron', monospace;
+            font-size: 2rem;
+            color: #00ff88;
+        }
+        
+        .summary-label {
+            color: #8892b0;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        
+        .no-bins {
+            color: #5a6a8a;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .refresh-btn {
+            background: rgba(0, 100, 200, 0.2);
+            border: 1px solid #0088ff;
+            color: #0088ff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+        
+        .refresh-btn:hover {
+            background: rgba(0, 100, 200, 0.3);
+        }
+        
+        .last-updated {
+            color: #5a6a8a;
+            font-size: 0.85rem;
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <i class="fas fa-recycle"></i>
+            <span class="logo-text">CLEAN<span class="highlight">ROUTE</span></span>
+        </div>
+        <div class="stats-bar">
+            <a href="/" class="back-btn">
+                <i class="fas fa-map"></i> Back to Map
+            </a>
+        </div>
+    </header>
+
+    <div class="districts-container">
+        <div class="page-header">
+            <h1 class="page-title"><i class="fas fa-map-marker-alt"></i> Bins by District</h1>
+            <div style="display: flex; align-items: center;">
+                <span class="last-updated" id="lastUpdated">Loading...</span>
+                <button class="refresh-btn" onclick="loadDistrictData()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Summary Bar -->
+        <div class="summary-bar" id="summaryBar">
+            <div class="summary-card">
+                <div class="summary-value" id="totalBinsCount">--</div>
+                <div class="summary-label">Total Bins</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="totalDistricts">--</div>
+                <div class="summary-label">Districts</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="criticalCount">--</div>
+                <div class="summary-label">Critical Bins</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="avgFillLevel">--</div>
+                <div class="summary-label">Avg Fill %</div>
+            </div>
+        </div>
+
+        <!-- Districts Grid -->
+        <div class="districts-grid" id="districtsGrid">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+
+    <script>
+        // District coordinates mapping (approximate centers)
+        const DISTRICT_BOUNDS = {
+            'Colombo': { minLat: 6.85, maxLat: 7.00, minLon: 79.80, maxLon: 79.95 },
+            'Kurunegala': { minLat: 7.40, maxLat: 7.55, minLon: 80.30, maxLon: 80.45 },
+            'Kandy': { minLat: 7.25, maxLat: 7.35, minLon: 80.60, maxLon: 80.70 },
+            'Galle': { minLat: 6.00, maxLat: 6.10, minLon: 80.18, maxLon: 80.28 },
+            'Jaffna': { minLat: 9.65, maxLat: 9.75, minLon: 80.00, maxLon: 80.10 },
+            'Matara': { minLat: 5.93, maxLat: 6.03, minLon: 80.50, maxLon: 80.60 },
+            'Negombo': { minLat: 7.18, maxLat: 7.25, minLon: 79.82, maxLon: 79.88 },
+            'Anuradhapura': { minLat: 8.30, maxLat: 8.40, minLon: 80.38, maxLon: 80.45 },
+            'Ratnapura': { minLat: 6.65, maxLat: 6.75, minLon: 80.38, maxLon: 80.45 },
+            'Batticaloa': { minLat: 7.70, maxLat: 7.80, minLon: 81.68, maxLon: 81.75 }
+        };
+
+        function getDistrictFromCoords(lat, lon) {
+            if (!lat || !lon) return 'Unknown';
+            
+            for (const [district, bounds] of Object.entries(DISTRICT_BOUNDS)) {
+                if (lat >= bounds.minLat && lat <= bounds.maxLat &&
+                    lon >= bounds.minLon && lon <= bounds.maxLon) {
+                    return district;
+                }
+            }
+            return 'Other';
+        }
+
+        function getFillClass(fillLevel) {
+            if (fillLevel >= 90) return 'critical';
+            if (fillLevel >= 70) return 'warning';
+            return 'normal';
+        }
+
+        function getBinItemClass(bin) {
+            if (bin.status === 'offline') return 'offline';
+            const fill = bin.current_fill_level || 0;
+            if (fill >= 90) return 'critical';
+            if (fill >= 70) return 'warning';
+            return '';
+        }
+
+        async function loadDistrictData() {
+            try {
+                const response = await fetch('/api/bins');
+                const bins = await response.json();
+                
+                // Group bins by district
+                const districtMap = {};
+                let totalFill = 0;
+                let criticalCount = 0;
+                
+                bins.forEach(bin => {
+                    const district = getDistrictFromCoords(bin.latitude, bin.longitude);
+                    if (!districtMap[district]) {
+                        districtMap[district] = [];
+                    }
+                    districtMap[district].push(bin);
+                    
+                    const fill = bin.current_fill_level || 0;
+                    totalFill += fill;
+                    if (fill >= 90) criticalCount++;
+                });
+                
+                // Update summary
+                document.getElementById('totalBinsCount').textContent = bins.length;
+                document.getElementById('totalDistricts').textContent = Object.keys(districtMap).length;
+                document.getElementById('criticalCount').textContent = criticalCount;
+                document.getElementById('avgFillLevel').textContent = 
+                    bins.length > 0 ? Math.round(totalFill / bins.length) + '%' : '0%';
+                document.getElementById('lastUpdated').textContent = 
+                    'Updated: ' + new Date().toLocaleTimeString();
+                
+                // Render districts
+                const grid = document.getElementById('districtsGrid');
+                grid.innerHTML = '';
+                
+                // Sort districts by bin count
+                const sortedDistricts = Object.entries(districtMap)
+                    .sort((a, b) => b[1].length - a[1].length);
+                
+                sortedDistricts.forEach(([district, districtBins]) => {
+                    const card = document.createElement('div');
+                    card.className = 'district-card';
+                    
+                    // Sort bins by fill level (highest first)
+                    districtBins.sort((a, b) => 
+                        (b.current_fill_level || 0) - (a.current_fill_level || 0));
+                    
+                    let binsHtml = '';
+                    districtBins.forEach(bin => {
+                        const fill = bin.current_fill_level || 0;
+                        const battery = bin.battery_level || 0;
+                        const fillClass = getFillClass(fill);
+                        const itemClass = getBinItemClass(bin);
+                        const batteryClass = battery < 20 ? 'low' : '';
+                        
+                        binsHtml += `
+                            <div class="bin-item ${itemClass}">
+                                <div class="bin-info">
+                                    <div class="bin-id">${bin.bin_id}</div>
+                                    <div class="bin-location">${bin.location || 'No location'}</div>
+                                    <div class="bin-coords">
+                                        ${bin.latitude ? bin.latitude.toFixed(4) : 'N/A'}, 
+                                        ${bin.longitude ? bin.longitude.toFixed(4) : 'N/A'}
+                                    </div>
+                                </div>
+                                <div class="bin-stats">
+                                    <div class="fill-level ${fillClass}">${Math.round(fill)}%</div>
+                                    <div class="battery-level ${batteryClass}">
+                                        <i class="fas fa-battery-${battery > 50 ? 'full' : battery > 20 ? 'half' : 'empty'}"></i>
+                                        ${Math.round(battery)}%
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    if (districtBins.length === 0) {
+                        binsHtml = '<div class="no-bins">No bins in this district</div>';
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="district-header">
+                            <span class="district-name">${district}</span>
+                            <span class="district-count">${districtBins.length} bins</span>
+                        </div>
+                        <div class="bins-list">
+                            ${binsHtml}
+                        </div>
+                    `;
+                    
+                    grid.appendChild(card);
+                });
+                
+            } catch (error) {
+                console.error('Error loading district data:', error);
+                document.getElementById('districtsGrid').innerHTML = 
+                    '<div class="no-bins">Error loading data. Is the backend running?</div>';
+            }
+        }
+
+        // Load data on page load
+        loadDistrictData();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadDistrictData, 30000);
+    </script>
+</body>
+</html>
