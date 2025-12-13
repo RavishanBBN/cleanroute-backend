@@ -5,12 +5,21 @@ let routeLine = null;
 let allBins = [];
 let currentPredictions = null;
 
+// Zone visualization variables
+let districtsData = [];
+let selectedZone = null;
+let zoneBoundary = null;
+let depotMarker = null;
+let routeMarkers = [];
+let routeArrows = [];
+
 // Initialize map when page loads
 document.addEventListener('DOMContentLoaded', function() {
     initializeMap();
     loadStats();
     loadBins();
     setupDefaultDate();
+    loadDistricts(); // Load districts for zone selection
     
     // Auto-refresh stats every 30 seconds
     setInterval(loadStats, 30000);
@@ -821,6 +830,435 @@ function showNotification(message, type = 'info') {
     console.log(`${emoji[type]} ${message}`);
     
     // You could add a toast notification library here for better UX
+}
+
+
+// =============================================================================
+// ZONE-BASED ROUTE OPTIMIZATION
+// =============================================================================
+
+// Load districts for dropdown
+async function loadDistricts() {
+    try {
+        const response = await fetch('/api/districts');
+        const data = await response.json();
+        districtsData = data.districts || [];
+        
+        const select = document.getElementById('districtSelect');
+        select.innerHTML = '<option value="">-- Select District --</option>';
+        
+        districtsData.forEach(district => {
+            const option = document.createElement('option');
+            option.value = district.id;
+            option.textContent = district.name;
+            select.appendChild(option);
+        });
+        
+        console.log(`Loaded ${districtsData.length} districts`);
+    } catch (error) {
+        console.error('Error loading districts:', error);
+    }
+}
+
+// Load zones for selected district
+function loadZonesForDistrict() {
+    const districtId = document.getElementById('districtSelect').value;
+    const zoneSelect = document.getElementById('zoneSelect');
+    
+    zoneSelect.innerHTML = '<option value="">-- Select Zone --</option>';
+    document.getElementById('optimizeZoneBtn').disabled = true;
+    document.getElementById('depotInfo').style.display = 'none';
+    
+    clearZoneVisualization();
+    
+    if (!districtId) return;
+    
+    const district = districtsData.find(d => d.id === districtId);
+    if (!district || !district.zones) return;
+    
+    district.zones.forEach(zone => {
+        const option = document.createElement('option');
+        option.value = zone.id;
+        option.textContent = zone.name;
+        zoneSelect.appendChild(option);
+    });
+    
+    // Zoom to district
+    if (district.center) {
+        map.setView([district.center.lat, district.center.lon], 13);
+    }
+}
+
+// Show selected zone on map
+function showZoneOnMap() {
+    const districtId = document.getElementById('districtSelect').value;
+    const zoneId = document.getElementById('zoneSelect').value;
+    
+    clearZoneVisualization();
+    
+    if (!districtId || !zoneId) {
+        document.getElementById('optimizeZoneBtn').disabled = true;
+        document.getElementById('depotInfo').style.display = 'none';
+        return;
+    }
+    
+    const district = districtsData.find(d => d.id === districtId);
+    if (!district) return;
+    
+    const zone = district.zones.find(z => z.id === zoneId);
+    if (!zone) return;
+    
+    selectedZone = zone;
+    
+    // Draw zone boundary
+    const bounds = zone.bounds;
+    if (bounds) {
+        zoneBoundary = L.rectangle(
+            [[bounds.south, bounds.west], [bounds.north, bounds.east]],
+            {
+                color: zone.color || '#00ff88',
+                weight: 3,
+                fillColor: zone.color || '#00ff88',
+                fillOpacity: 0.15,
+                dashArray: '10, 5'
+            }
+        ).addTo(map);
+        
+        // Fit map to zone bounds
+        map.fitBounds([[bounds.south, bounds.west], [bounds.north, bounds.east]], { padding: [50, 50] });
+    }
+    
+    // Add depot marker
+    if (zone.depot && zone.depot.lat && zone.depot.lon) {
+        const depotIcon = L.divIcon({
+            className: 'depot-marker',
+            html: `
+                <div style="
+                    width: 45px;
+                    height: 45px;
+                    background: linear-gradient(135deg, ${zone.color || '#00ff88'}, #0088ff);
+                    border: 4px solid #fff;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 20px;
+                    box-shadow: 0 0 25px ${zone.color || '#00ff88'};
+                    animation: pulse 2s infinite;
+                ">🏠</div>
+            `,
+            iconSize: [45, 45],
+            iconAnchor: [22, 22]
+        });
+        
+        depotMarker = L.marker([zone.depot.lat, zone.depot.lon], { icon: depotIcon })
+            .addTo(map)
+            .bindPopup(`
+                <div class="popup-content">
+                    <div class="popup-title">📍 Starting Depot</div>
+                    <div class="popup-info">
+                        <span class="popup-label">Name:</span>
+                        <span class="popup-value">${zone.depot.name || 'Zone Depot'}</span>
+                    </div>
+                    <div class="popup-info">
+                        <span class="popup-label">Zone:</span>
+                        <span class="popup-value">${zone.name}</span>
+                    </div>
+                </div>
+            `);
+        
+        document.getElementById('depotName').textContent = zone.depot.name || 'Zone Depot';
+        document.getElementById('depotInfo').style.display = 'block';
+    }
+    
+    // Enable optimize button
+    document.getElementById('optimizeZoneBtn').disabled = false;
+    
+    // Highlight bins in this zone
+    highlightBinsInZone(zone);
+}
+
+// Highlight bins within the selected zone
+function highlightBinsInZone(zone) {
+    const bounds = zone.bounds;
+    if (!bounds) return;
+    
+    let binsInZone = 0;
+    
+    allBins.forEach(bin => {
+        if (!bin.latitude || !bin.longitude) return;
+        
+        const inZone = bin.latitude >= bounds.south && bin.latitude <= bounds.north &&
+                       bin.longitude >= bounds.west && bin.longitude <= bounds.east;
+        
+        const marker = markers[bin.bin_id];
+        if (marker) {
+            if (inZone) {
+                binsInZone++;
+                marker.setOpacity(1);
+                marker.setZIndexOffset(1000);
+            } else {
+                marker.setOpacity(0.3);
+                marker.setZIndexOffset(0);
+            }
+        }
+    });
+    
+    console.log(`Found ${binsInZone} bins in zone ${zone.name}`);
+}
+
+// Optimize route for selected zone
+async function optimizeZoneRoute() {
+    if (!selectedZone) {
+        showNotification('Please select a zone first', 'error');
+        return;
+    }
+    
+    const dateInput = document.getElementById('predictionDate').value;
+    const timeInput = document.getElementById('predictionTime').value;
+    
+    if (!dateInput || !timeInput) {
+        showNotification('Please select date and time', 'error');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        // Get bins in this zone
+        const bounds = selectedZone.bounds;
+        const binsInZone = allBins.filter(bin => {
+            if (!bin.latitude || !bin.longitude) return false;
+            return bin.latitude >= bounds.south && bin.latitude <= bounds.north &&
+                   bin.longitude >= bounds.west && bin.longitude <= bounds.east;
+        });
+        
+        if (binsInZone.length === 0) {
+            showNotification('No bins found in this zone', 'info');
+            showLoading(false);
+            return;
+        }
+        
+        // Simple nearest neighbor routing from depot
+        const route = calculateOptimalRoute(binsInZone, selectedZone.depot);
+        
+        // Display route on map
+        displayZoneRoute(route, selectedZone);
+        
+        showNotification(`Route optimized: ${route.length} bins, starting from ${selectedZone.depot.name || 'depot'}`, 'success');
+        
+    } catch (error) {
+        console.error('Error optimizing zone route:', error);
+        showNotification('Route optimization failed', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Calculate optimal route using nearest neighbor algorithm
+function calculateOptimalRoute(bins, depot) {
+    if (bins.length === 0) return [];
+    
+    const route = [];
+    const unvisited = [...bins];
+    let currentPos = { lat: depot.lat, lon: depot.lon };
+    
+    while (unvisited.length > 0) {
+        let nearestIdx = 0;
+        let nearestDist = Infinity;
+        
+        for (let i = 0; i < unvisited.length; i++) {
+            const dist = getDistance(currentPos.lat, currentPos.lon, 
+                                    unvisited[i].latitude, unvisited[i].longitude);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestIdx = i;
+            }
+        }
+        
+        const nearest = unvisited.splice(nearestIdx, 1)[0];
+        route.push(nearest);
+        currentPos = { lat: nearest.latitude, lon: nearest.longitude };
+    }
+    
+    return route;
+}
+
+// Calculate distance between two points (Haversine)
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// Display the optimized route on map
+function displayZoneRoute(route, zone) {
+    // Clear previous route markers
+    routeMarkers.forEach(m => map.removeLayer(m));
+    routeArrows.forEach(a => map.removeLayer(a));
+    routeMarkers = [];
+    routeArrows = [];
+    
+    if (route.length === 0) return;
+    
+    // Create path coordinates starting from depot
+    const pathCoords = [[zone.depot.lat, zone.depot.lon]];
+    route.forEach(bin => {
+        pathCoords.push([bin.latitude, bin.longitude]);
+    });
+    // Return to depot
+    pathCoords.push([zone.depot.lat, zone.depot.lon]);
+    
+    // Draw route line with arrows
+    const routeLine = L.polyline(pathCoords, {
+        color: zone.color || '#00ff88',
+        weight: 4,
+        opacity: 0.9,
+        dashArray: null
+    }).addTo(map);
+    routeArrows.push(routeLine);
+    
+    // Add arrow decorations
+    for (let i = 0; i < pathCoords.length - 1; i++) {
+        const start = pathCoords[i];
+        const end = pathCoords[i + 1];
+        const midLat = (start[0] + end[0]) / 2;
+        const midLon = (start[1] + end[1]) / 2;
+        
+        // Calculate arrow angle
+        const angle = Math.atan2(end[0] - start[0], end[1] - start[1]) * 180 / Math.PI;
+        
+        const arrowIcon = L.divIcon({
+            className: 'route-arrow',
+            html: `<div style="
+                font-size: 18px;
+                color: ${zone.color || '#00ff88'};
+                transform: rotate(${90 - angle}deg);
+                text-shadow: 0 0 5px #000;
+            ">➤</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+        
+        const arrowMarker = L.marker([midLat, midLon], { icon: arrowIcon }).addTo(map);
+        routeArrows.push(arrowMarker);
+    }
+    
+    // Add numbered markers for each bin in order
+    route.forEach((bin, index) => {
+        const fillLevel = bin.current_fill_level || 0;
+        const color = fillLevel >= 90 ? '#ff0055' : fillLevel >= 70 ? '#ffaa00' : '#00ff88';
+        
+        const orderIcon = L.divIcon({
+            className: 'route-order-marker',
+            html: `
+                <div style="
+                    width: 32px;
+                    height: 32px;
+                    background: ${color};
+                    border: 3px solid #fff;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                    font-size: 14px;
+                    color: #000;
+                    box-shadow: 0 0 15px ${color};
+                ">${index + 1}</div>
+            `,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+        
+        const orderMarker = L.marker([bin.latitude, bin.longitude], { icon: orderIcon })
+            .addTo(map)
+            .bindPopup(`
+                <div class="popup-content">
+                    <div class="popup-title">Stop #${index + 1}: ${bin.bin_id}</div>
+                    <div class="popup-info">
+                        <span class="popup-label">Location:</span>
+                        <span class="popup-value">${bin.location || 'Unknown'}</span>
+                    </div>
+                    <div class="popup-info">
+                        <span class="popup-label">Fill Level:</span>
+                        <span class="popup-value">${Math.round(fillLevel)}%</span>
+                    </div>
+                </div>
+            `);
+        
+        routeMarkers.push(orderMarker);
+    });
+    
+    // Calculate total distance
+    let totalDistance = 0;
+    for (let i = 0; i < pathCoords.length - 1; i++) {
+        totalDistance += getDistance(pathCoords[i][0], pathCoords[i][1], 
+                                    pathCoords[i+1][0], pathCoords[i+1][1]);
+    }
+    
+    // Show route info
+    document.getElementById('routeInfo').style.display = 'block';
+    document.getElementById('routeBinsCount').textContent = route.length;
+    document.getElementById('routeDistance').textContent = totalDistance.toFixed(2) + ' km';
+    document.getElementById('routeTime').textContent = Math.round(totalDistance / 30 * 60 + route.length * 3) + ' min';
+    
+    // Show waypoints
+    const waypointsDiv = document.getElementById('routeWaypoints');
+    waypointsDiv.innerHTML = `
+        <div style="margin-top: 10px;">
+            <div style="color: #00ff88; font-weight: bold; margin-bottom: 5px;">
+                <i class="fas fa-list-ol"></i> Collection Order:
+            </div>
+            <div style="font-size: 0.85rem; color: #8892b0;">
+                <div>🏠 Start: ${zone.depot.name || 'Depot'}</div>
+                ${route.map((bin, i) => `<div>${i+1}. ${bin.bin_id} (${Math.round(bin.current_fill_level || 0)}%)</div>`).join('')}
+                <div>🏠 Return: ${zone.depot.name || 'Depot'}</div>
+            </div>
+        </div>
+    `;
+}
+
+// Clear zone visualization
+function clearZoneVisualization() {
+    if (zoneBoundary) {
+        map.removeLayer(zoneBoundary);
+        zoneBoundary = null;
+    }
+    if (depotMarker) {
+        map.removeLayer(depotMarker);
+        depotMarker = null;
+    }
+    routeMarkers.forEach(m => map.removeLayer(m));
+    routeArrows.forEach(a => map.removeLayer(a));
+    routeMarkers = [];
+    routeArrows = [];
+    
+    // Reset bin opacity
+    Object.values(markers).forEach(marker => {
+        marker.setOpacity(1);
+        marker.setZIndexOffset(0);
+    });
+}
+
+// Clear zone selection
+function clearZoneSelection() {
+    document.getElementById('districtSelect').value = '';
+    document.getElementById('zoneSelect').innerHTML = '<option value="">-- Select Zone --</option>';
+    document.getElementById('optimizeZoneBtn').disabled = true;
+    document.getElementById('depotInfo').style.display = 'none';
+    document.getElementById('routeInfo').style.display = 'none';
+    
+    selectedZone = null;
+    clearZoneVisualization();
+    
+    // Reset view
+    map.setView([6.9271, 79.8612], 12);
 }
 
 // Close modal when clicking outside

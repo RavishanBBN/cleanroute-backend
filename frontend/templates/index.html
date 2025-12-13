@@ -89,10 +89,6 @@
                     <i class="fas fa-brain"></i> Generate Predictions
                 </button>
                 
-                <button class="btn btn-success" onclick="optimizeRoute()">
-                    <i class="fas fa-route"></i> Optimize Route
-                </button>
-                
                 <button class="btn btn-secondary" onclick="resetView()">
                     <i class="fas fa-sync-alt"></i> Reset View
                 </button>
@@ -104,6 +100,46 @@
                 <a href="/districts" class="btn btn-secondary" style="text-decoration: none; display: block; text-align: center; margin-top: 10px;">
                     <i class="fas fa-map-marker-alt"></i> View by District
                 </a>
+            </div>
+
+            <!-- Zone-Based Route Optimization -->
+            <div class="control-panel" style="margin-top: 15px;">
+                <h2 class="panel-title">
+                    <i class="fas fa-route"></i> Zone Routing
+                </h2>
+                
+                <div class="control-section">
+                    <label class="control-label">
+                        <i class="fas fa-city"></i> Select District
+                    </label>
+                    <select id="districtSelect" class="control-input" onchange="loadZonesForDistrict()">
+                        <option value="">-- Select District --</option>
+                    </select>
+                </div>
+                
+                <div class="control-section">
+                    <label class="control-label">
+                        <i class="fas fa-map-marked-alt"></i> Select Zone
+                    </label>
+                    <select id="zoneSelect" class="control-input" onchange="showZoneOnMap()">
+                        <option value="">-- Select Zone --</option>
+                    </select>
+                </div>
+                
+                <div class="control-section" id="depotInfo" style="display: none;">
+                    <div style="background: rgba(0,255,136,0.1); border: 1px solid #00ff88; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                        <div style="color: #00ff88; font-size: 0.9rem;"><i class="fas fa-warehouse"></i> Starting Depot</div>
+                        <div style="color: #fff; font-size: 0.85rem;" id="depotName">--</div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-success" onclick="optimizeZoneRoute()" id="optimizeZoneBtn" disabled>
+                    <i class="fas fa-route"></i> Optimize Zone Route
+                </button>
+                
+                <button class="btn btn-secondary" onclick="clearZoneSelection()" style="margin-top: 10px;">
+                    <i class="fas fa-times"></i> Clear Selection
+                </button>
             </div>
 
             <!-- Route Info -->
